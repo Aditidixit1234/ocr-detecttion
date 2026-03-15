@@ -1,1 +1,1 @@
-# ocr-detecttion
+# Handwriting OCR Detection and LLM Summarizer
