@@ -1,6 +1,7 @@
 .venv/
 .idea/
 research/
+data/
 ocr-detecttion/
 __pycache__/
 trocr-sample-handwritten/

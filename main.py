@@ -44,9 +44,9 @@ if __name__ == "__main__":
             print(f"Error: Image file {args.image} not found.")
     else:
         # Default demo image
-        demo_img = r"C:\Users\Harsh\.cache\kagglehub\datasets\ssarkar445\handwriting-recognitionocr\versions\1\test_v2\test\TEST_0008.jpg"
+        demo_img = os.path.join("data", "iam", "words", "a01", "a01-000u", "a01-000u-00-00.png")
         if os.path.exists(demo_img):
-            print("No image provided. Running demo on sample image...")
+            print("No image provided. Running demo on IAM sample image...")
             process_handwriting(demo_img)
         else:
             print("Please provide an image path using --image <path>")
