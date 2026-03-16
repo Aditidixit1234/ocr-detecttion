@@ -1,0 +1,6 @@
+.venv/
+.idea/
+research/
+ocr-detecttion/
+__pycache__/
+trocr-sample-handwritten/
