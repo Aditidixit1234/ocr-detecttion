@@ -50,36 +50,37 @@ class OCRSystem:
         return lines
 
     def process_image(self, image_path):
-        """Perform OCR on an image and return the recognized text."""
+        """Perform OCR on an image and return the recognized text and confidence scores."""
         image = Image.open(image_path).convert("RGB")
         img_np = np.array(image)
         
         # Use EasyOCR to detect text regions
-        # detail=1 returns bounding boxes
         print("Detecting text regions...")
-        detections = self.reader.readtext(img_np, detail=1)
+        # Increase sensitivity by lowering text_threshold
+        # and keep paragraph=False to get more granular boxes
+        detections = self.reader.readtext(
+            img_np, 
+            detail=1, 
+            text_threshold=0.5,
+            link_threshold=0.3,
+            low_text=0.3
+        )
         
         if not detections:
             print("No text detected by EasyOCR, trying fallback segmentation...")
-            # Fallback to simple segmentation if EasyOCR fails
-            return self._process_fallback(image)
+            text = self._process_fallback(image)
+            return text, [0.5] # Default low confidence for fallback
 
-        # Group detections into lines
         lines = self._group_detections_to_lines(detections)
         
-        all_text = []
+        results = [] # List of (text, confidence)
         print(f"Processing {len(lines)} lines of text...")
         for line in lines:
-            # For each line, we could either process word by word or crop the whole line
-            # TrOCR is better at lines, so let's crop the line bounding box
-            
-            # Find the bounding box of the whole line
             min_x = min([min([p[0] for p in d[0]]) for d in line])
             max_x = max([max([p[0] for p in d[0]]) for d in line])
             min_y = min([min([p[1] for p in d[0]]) for d in line])
             max_y = max([max([p[1] for p in d[0]]) for d in line])
             
-            # Add some padding
             padding = 5
             min_x = max(0, int(min_x - padding))
             min_y = max(0, int(min_y - padding))
@@ -87,20 +88,39 @@ class OCRSystem:
             max_y = min(img_np.shape[0], int(max_y + padding))
             
             line_crop = image.crop((min_x, min_y, max_x, max_y))
-            
             pixel_values = self.processor(line_crop, return_tensors="pt").pixel_values.to(self.device)
             
-            generated_ids = self.model.generate(
+            # Generate with scores
+            outputs = self.model.generate(
                 pixel_values, 
                 max_new_tokens=128, 
                 num_beams=4, 
-                early_stopping=True
+                early_stopping=True,
+                return_dict_in_generate=True,
+                output_scores=True
             )
+            
+            generated_ids = outputs.sequences
             generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            
+            # Calculate confidence from scores
+            # scores is a tuple of (num_tokens) length, each element is [batch, vocab_size]
+            # For simplicity, we'll take the average of the log-probs of selected tokens
+            if hasattr(outputs, "sequences_scores") and outputs.sequences_scores is not None:
+                # sequences_scores is log-probability of the whole sequence
+                # Convert to a 0-1 range roughly (exp of average log-prob)
+                seq_len = generated_ids.shape[1]
+                conf = torch.exp(outputs.sequences_scores / seq_len).item()
+            else:
+                conf = 0.9 # Fallback
+            
             if generated_text.strip():
-                all_text.append(generated_text.strip())
+                results.append((generated_text.strip(), conf))
         
-        return " ".join(all_text)
+        full_text = " ".join([r[0] for r in results])
+        scores = [r[1] for r in results]
+        
+        return full_text, scores
 
     def _process_fallback(self, image):
         """Fallback processing for images where EasyOCR detection fails."""

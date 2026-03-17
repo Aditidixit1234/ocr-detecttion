@@ -13,10 +13,15 @@ def process_handwriting(image_path):
 
     # Execution
     print(f"\n[1/3] Processing OCR for: {image_path}")
-    raw_text = ocr.process_image(image_path)
+    raw_text, confidence_scores = ocr.process_image(image_path)
     
-    print(f"[2/3] Cleaning and correcting text...")
-    cleaned_text = nlp.clean_text(raw_text)
+    # Calculate overall confidence
+    avg_conf = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
+    print(f"OCR Complete. Average Confidence: {avg_conf:.4f}")
+
+    print(f"[2/3] Applying Neural Spell Correction...")
+    # Use our new neural correction logic
+    cleaned_text = nlp.neural_correct(raw_text, confidence_scores)
     
     print(f"[3/3] Generating summary and extracting insights...")
     results = summ.extract(cleaned_text)
