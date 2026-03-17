@@ -9,22 +9,28 @@ class TextCorrector:
         if os.path.exists(dict_path):
             self.sym_spell.load_dictionary(dict_path, term_index=0, count_index=1)
         else:
+            # Fallback to a default dictionary if possible or just log warning
             print(f"Warning: Spelling dictionary not found at {dict_path}. Running without correction.")
 
     def clean_text(self, text):
         """Cleans and corrects recognized text."""
-        # Simple cleanup
-        text = text.strip()
-        
-        words = text.split()
-        corrected_words = []
-        for word in words:
-            # Skip numbers or very short words
-            if len(word) < 2 or not word.isalpha():
-                corrected_words.append(word)
-                continue
+        if not text:
+            return ""
             
-            suggestions = self.sym_spell.lookup(word, Verbosity.CLOSEST, max_edit_distance=2)
-            corrected_words.append(suggestions[0].term if suggestions else word)
+        # Basic cleaning: remove extra whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
         
-        return " ".join(corrected_words)
+        # Word segmentation (useful for joined words in OCR)
+        # and spelling correction
+        try:
+            # SymSpell's lookup_compound is great for sentences with spelling errors and joined words
+            suggestions = self.sym_spell.lookup_compound(text, max_edit_distance=2)
+            if suggestions:
+                corrected_text = suggestions[0].term
+            else:
+                corrected_text = text
+        except Exception as e:
+            print(f"Correction error: {e}")
+            corrected_text = text
+            
+        return corrected_text

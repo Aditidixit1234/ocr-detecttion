@@ -1,12 +1,13 @@
 import torch
 import re
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 class InsightsExtractor:
     def __init__(self, model_name="facebook/bart-large-cnn"):
         print(f"Loading Summarizer: {model_name}...")
-        device = 0 if torch.cuda.is_available() else -1
-        self.summarizer = pipeline("summarization", model=model_name, device=device)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(self.device)
 
     def extract(self, text):
         """Extracts dates, titles, and a summary from the corrected text."""
@@ -16,9 +17,17 @@ class InsightsExtractor:
         
         summary = text
         if len(text.split()) > 15:
-            # BART has max length constraints
-            result = self.summarizer(text, max_length=50, min_length=10, do_sample=False)
-            summary = result[0]["summary_text"]
+            # Manual generation for summarization
+            inputs = self.tokenizer(text, max_length=1024, return_tensors="pt", truncation=True).to(self.device)
+            summary_ids = self.model.generate(
+                inputs["input_ids"], 
+                num_beams=4, 
+                max_length=50, 
+                min_length=10,
+                early_stopping=True,
+                no_repeat_ngram_size=3
+            )
+            summary = self.tokenizer.decode(summary_ids[0], skip_special_tokens=True)
 
         return {
             "cleaned_text": text,
