@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OCR Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="logo-mark">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <rect x="2" y="2" width="7" height="7" rx="1.5" stroke="#e8c97d" stroke-width="1.5"/>
+        <rect x="13" y="2" width="7" height="7" rx="1.5" stroke="#e8c97d" stroke-width="1.5"/>
+        <rect x="2" y="13" width="7" height="7" rx="1.5" stroke="#e8c97d" stroke-width="1.5"/>
+        <path d="M13 16.5h6M16 13.5v6" stroke="#e8c97d" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>OCR Studio</h1>
+      <p>Optical character recognition &amp; correction</p>
+    </div>
+  </header>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept="image/*" />
+    <div class="upload-icon">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9a9898" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <h2>Drop an image here</h2>
+    <p>or click to browse your files</p>
+    <div class="hint">PNG · JPG · WEBP · GIF · BMP · TIFF</div>
+  </div>
+
+  <!-- Image Preview -->
+  <div id="preview-wrap">
+    <span class="preview-label">PREVIEW</span>
+    <img id="preview-img" src="" alt="Preview" />
+  </div>
+
+  <!-- Analyze Button -->
+  <button id="analyze-btn">Analyze Image</button>
+
+  <!-- Error Box -->
+  <div id="error-box">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span id="error-msg">An error occurred.</span>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Extracting text<span class="loading-dots"></span></p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="results-header">
+      <h2>Analysis Complete</h2>
+      <span class="badge">✓ Done</span>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-label"><span class="dot dot-raw"></span>Raw OCR Text</span>
+          <button class="copy-btn" data-target="raw-text">Copy</button>
+        </div>
+        <div class="card-body" id="raw-text"><pre></pre></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-label"><span class="dot dot-clean"></span>Corrected Text</span>
+          <button class="copy-btn" data-target="clean-text">Copy</button>
+        </div>
+        <div class="card-body" id="clean-text"><p></p></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-label"><span class="dot dot-summary"></span>Summary</span>
+          <button class="copy-btn" data-target="summary-text">Copy</button>
+        </div>
+        <div class="card-body" id="summary-text"><p></p></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Reset -->
+  <button id="reset-btn">↩ Process another image</button>
+
+  <footer>OCR Studio &mdash; Powered by AI</footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
