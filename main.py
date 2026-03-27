@@ -1,100 +1,57 @@
 import os
 import json
 import argparse
-import shutil
-
-# Your existing modules
 from src.ocr import OCRSystem
 from src.nlp_correct import TextCorrector
 from src.summarizer import InsightsExtractor
 
-# FastAPI imports
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-
-
-# -------------------------------
-# CORE FUNCTION (MODIFIED)
-# -------------------------------
 def process_handwriting(image_path):
     # Initialize Pipeline
     ocr = OCRSystem()
     nlp = TextCorrector()
     summ = InsightsExtractor()
 
-    # Step 1: OCR
+    # Execution
+    print(f"\n[1/3] Processing OCR for: {image_path}")
     raw_text, confidence_scores = ocr.process_image(image_path)
-
-    # Calculate confidence
+    
+    # Calculate overall confidence
     avg_conf = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
+    print(f"OCR Complete. Average Confidence: {avg_conf:.4f}")
 
-    # Step 2: NLP Correction
+    print(f"[2/3] Applying Neural Spell Correction...")
+    # Use our new neural correction logic
     cleaned_text = nlp.neural_correct(raw_text, confidence_scores)
-
-    # Step 3: Summarization
+    
+    print(f"[3/3] Generating summary and extracting insights...")
     results = summ.extract(cleaned_text)
+    
+    # Final Output
+    print("\n" + "="*40)
+    print("FINAL RESULTS")
+    print("="*40)
+    print(f"Raw OCR Output: {raw_text}")
+    print(f"Cleaned Text:   {cleaned_text}")
+    print("\nInsights (JSON):")
+    print(json.dumps(results, indent=2))
+    print("="*40)
 
-    # ✅ IMPORTANT: RETURN (not just print)
-    return {
-        "raw_text": raw_text,
-        "cleaned_text": cleaned_text,
-        "insights": results,
-        "confidence": avg_conf
-    }
-
-
-# -------------------------------
-# FASTAPI BACKEND
-# -------------------------------
-app = FastAPI()
-
-# Allow frontend to connect
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.post("/process")
-async def process_image(file: UploadFile = File(...)):
-    file_path = "temp.png"
-
-    # Save uploaded image
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    # Run your pipeline
-    result = process_handwriting(file_path)
-
-    return result
-
-
-# -------------------------------
-# CLI MODE (OPTIONAL)
-# -------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Handwriting OCR Pipeline")
     parser.add_argument("--image", type=str, help="Path to the handwritten image")
-
+    
     args = parser.parse_args()
-
+    
     if args.image:
         if os.path.exists(args.image):
-            result = process_handwriting(args.image)
-
-            print("\n" + "="*40)
-            print("FINAL RESULTS")
-            print("="*40)
-            print(f"Raw OCR Output: {result['raw_text']}")
-            print(f"Cleaned Text:   {result['cleaned_text']}")
-            print("\nInsights (JSON):")
-            print(json.dumps(result['insights'], indent=2))
-            print(f"\nConfidence: {result['confidence']:.4f}")
-            print("="*40)
-
+            process_handwriting(args.image)
         else:
             print(f"Error: Image file {args.image} not found.")
     else:
-        print("Please provide an image path using --image <path>")
+        # Default demo image
+        demo_img = os.path.join("data", "iam", "words", "a01", "a01-000u", "a01-000u-00-00.png")
+        if os.path.exists(demo_img):
+            print("No image provided. Running demo on IAM sample image...")
+            process_handwriting(demo_img)
+        else:
+            print("Please provide an image path using --image <path>")

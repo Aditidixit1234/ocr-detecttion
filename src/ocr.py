@@ -56,12 +56,10 @@ class OCRSystem:
         
         # Use EasyOCR to detect text regions
         print("Detecting text regions...")
-        # Increase sensitivity by lowering text_threshold
-        # and keep paragraph=False to get more granular boxes
         detections = self.reader.readtext(
             img_np, 
             detail=1, 
-            text_threshold=0.5,
+            text_threshold=0.4, 
             link_threshold=0.3,
             low_text=0.3
         )
@@ -120,6 +118,13 @@ class OCRSystem:
         full_text = " ".join([r[0] for r in results])
         scores = [r[1] for r in results]
         
+        # --- FALLBACK: If results are very short or confidence is very low ---
+        if len(full_text.split()) < 5 or (scores and sum(scores)/len(scores) < 0.85):
+            print("Low confidence/short text detected. Trying full-image fallback...")
+            fallback_text = self._process_fallback(image)
+            if len(fallback_text.split()) > len(full_text.split()):
+                return fallback_text, [0.7] # Return fallback if it found more words
+
         return full_text, scores
 
     def _process_fallback(self, image):
