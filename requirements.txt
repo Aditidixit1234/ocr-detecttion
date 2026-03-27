@@ -17,3 +17,4 @@ evaluate
 jiwer
 scikit-learn
 huggingface_hub
+fastapi
