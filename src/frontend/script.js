@@ -65,8 +65,12 @@ analyzeBtn.addEventListener('click', async () => {
   const formData = new FormData();
   formData.append('file', selectedFile);
 
+  const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://127.0.0.1:8000' 
+    : ''; // Use relative path if deployed
+
   try {
-    const res = await fetch('http://127.0.0.1:8000/process', {
+    const res = await fetch(`${API_BASE_URL}/process`, {
       method: 'POST',
       body: formData
     });

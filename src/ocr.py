@@ -23,6 +23,12 @@ class OCRSystem:
         # EasyOCR (GPU if available)
         self.reader = easyocr.Reader(['en'], gpu=self.device.type == "cuda")
 
+    def _to_device(self, tensor):
+        tensor = tensor.to(self.device)
+        if self.device.type == "cuda":
+            return tensor.half()
+        return tensor
+
     def _group_detections_to_lines(self, detections, y_threshold=20):
         if not detections:
             return []
@@ -58,11 +64,11 @@ class OCRSystem:
 
         if not detections:
             print("Fallback triggered...")
-            return self._process_fallback(image), [0.5]
+            return self._process_fallback(image)
 
         lines = self._group_detections_to_lines(detections)
 
-        # 🔥 Collect ALL line crops first (batching)
+        # 🔥 Collect ALL line crops
         crops = []
         for line in lines:
             min_x = min([min([p[0] for p in d[0]]) for d in line])
@@ -77,45 +83,67 @@ class OCRSystem:
                 min(img_np.shape[1], int(max_x + padding)),
                 min(img_np.shape[0], int(max_y + padding))
             ))
-
             crops.append(crop)
 
         # 🔥 Batch processing
         with torch.no_grad():
-            pixel_values = self.processor(crops, return_tensors="pt", padding=True).pixel_values.to(self.device)
-
-            if self.device.type == "cuda":
-                pixel_values = pixel_values.half()
+            pixel_values = self.processor(crops, return_tensors="pt", padding=True).pixel_values
+            pixel_values = self._to_device(pixel_values)
 
             outputs = self.model.generate(
                 pixel_values,
                 max_new_tokens=128,
                 num_beams=4,
-                early_stopping=True
+                early_stopping=True,
+                return_dict_in_generate=True,
+                output_scores=True
             )
 
-        texts = self.processor.batch_decode(outputs, skip_special_tokens=True)
+        texts = self.processor.batch_decode(outputs.sequences, skip_special_tokens=True)
+        
+        # Fixed Confidence Calculation: Use mean token probability
+        # This is much more representative of OCR accuracy
+        if hasattr(outputs, "sequences_scores") and outputs.sequences_scores is not None:
+            # sequences_scores are log-probs. Convert to 0-1 range.
+            # We use a sigmoid-like normalization because raw exp(log_prob) is often too low.
+            confidences = torch.exp(outputs.sequences_scores / 2.0).cpu().numpy().tolist()
+        else:
+            confidences = [0.8] * len(texts)
 
-        results = [(t.strip(), 0.9) for t in texts if t.strip()]
+        results = []
+        for text, conf in zip(texts, confidences):
+            if text.strip():
+                normalized_conf = max(0.1, min(0.99, float(conf)))
+                results.append((text.strip(), normalized_conf))
 
         full_text = " ".join([r[0] for r in results])
         scores = [r[1] for r in results]
 
         if len(full_text.split()) < 5:
             print("Fallback triggered...")
-            fallback_text = self._process_fallback(image)
+            fallback_text, fallback_score = self._process_fallback(image)
             if len(fallback_text.split()) > len(full_text.split()):
-                return fallback_text, [0.7]
+                return fallback_text, [fallback_score]
 
         return full_text, scores
 
     def _process_fallback(self, image):
         with torch.no_grad():
-            pixel_values = self.processor(image, return_tensors="pt").pixel_values.to(self.device)
+            pixel_values = self.processor(image, return_tensors="pt").pixel_values
+            pixel_values = self._to_device(pixel_values)
 
-            if self.device.type == "cuda":
-                pixel_values = pixel_values.half()
+            outputs = self.model.generate(
+                pixel_values, 
+                max_new_tokens=128,
+                return_dict_in_generate=True,
+                output_scores=True
+            )
 
-            outputs = self.model.generate(pixel_values, max_new_tokens=128)
+        text = self.processor.batch_decode(outputs.sequences, skip_special_tokens=True)[0].strip()
+        
+        conf = 0.8
+        if hasattr(outputs, "sequences_scores") and outputs.sequences_scores is not None:
+            conf = float(torch.exp(outputs.sequences_scores[0] / 2.0).cpu().item())
+            conf = max(0.1, min(0.99, conf))
 
-        return self.processor.batch_decode(outputs, skip_special_tokens=True)[0].strip()
+        return text, conf

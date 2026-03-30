@@ -2,6 +2,9 @@ import os
 import json
 import argparse
 import shutil
+import uuid
+import logging
+from contextlib import asynccontextmanager
 
 # Your existing modules
 from src.ocr import OCRSystem
@@ -9,18 +12,39 @@ from src.nlp_correct import TextCorrector
 from src.summarizer import InsightsExtractor
 
 # FastAPI imports
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+
+# -------------------------------
+# GLOBAL INSTANCES (SINGLETONS)
+# -------------------------------
+ocr = None
+nlp = None
+summ = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global ocr, nlp, summ
+    print("Initializing models...")
+    ocr = OCRSystem()
+    nlp = TextCorrector()
+    summ = InsightsExtractor()
+    yield
+    print("Shutting down...")
 
 # -------------------------------
 # CORE FUNCTION (SHARED)
 # -------------------------------
 def process_handwriting(image_path, verbose=False):
-    # Initialize Pipeline
-    ocr = OCRSystem()
-    nlp = TextCorrector()
-    summ = InsightsExtractor()
+    # Use global singletons if they exist, otherwise instantiate (for CLI)
+    global ocr, nlp, summ
+    if ocr is None:
+        ocr = OCRSystem()
+    if nlp is None:
+        nlp = TextCorrector()
+    if summ is None:
+        summ = InsightsExtractor()
 
     if verbose:
         print(f"\n[1/3] Processing OCR for: {image_path}")
@@ -46,7 +70,7 @@ def process_handwriting(image_path, verbose=False):
     output = {
         "raw_text": raw_text,
         "cleaned_text": cleaned_text,
-        "insights": results,
+        "insights": results.get("summary", results),
         "confidence": avg_conf
     }
 
@@ -67,26 +91,35 @@ def process_handwriting(image_path, verbose=False):
 # -------------------------------
 # FASTAPI BACKEND
 # -------------------------------
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False, # Changed to False to fix CORS conflict
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.post("/process")
 async def process_image(file: UploadFile = File(...)):
-    file_path = "temp.png"
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail=f"File {file.filename} is not an image.")
 
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    file_path = f"temp_{uuid.uuid4().hex}.png"
 
-    result = process_handwriting(file_path, verbose=False)
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-    return result
+        result = process_handwriting(file_path, verbose=False)
+        return result
+    except Exception as e:
+        logging.error(f"Error processing image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 
 # -------------------------------
